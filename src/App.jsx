@@ -62,6 +62,10 @@ function formatDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 }
+function formatDoctorName(name = "") {
+  const cleanName = name.trim().replace(/^(dr\.?\s*)+/i, "");
+  return cleanName ? `Dr. ${cleanName}` : "Doctor";
+}
 function initials(name = "") {
   return name.trim().split(/\s+/).slice(0, 2).map(x => x[0]?.toUpperCase() || "").join("") || "HM";
 }
@@ -385,7 +389,7 @@ function Doctors({ token, onAction }) {
                   <i /> Listed in directory
                 </span>
 
-                <h3>Dr. {doctor.name}</h3>
+                <h3>{formatDoctorName(doctor.name)}</h3>
                 <p>{doctor.specialization || "General practice"}</p>
 
                 <div className="doctor-card-id">
@@ -410,7 +414,7 @@ function Doctors({ token, onAction }) {
       {selected && (
         <Modal
           title="Book an appointment"
-          subtitle={`Request a visit with Dr. ${selected.name}.`}
+          subtitle={`Request a visit with ${formatDoctorName(selected.name)}.`}
           onClose={() => {
             setSelected(null);
             setBookingError("");
@@ -422,7 +426,7 @@ function Doctors({ token, onAction }) {
                 {initials(selected.name)}
               </div>
               <div>
-                <strong>Dr. {selected.name}</strong>
+                <strong>{formatDoctorName(selected.name)}</strong>
                 <small>{selected.specialization}</small>
               </div>
             </div>
@@ -503,7 +507,10 @@ function PatientAppointments({ token, onAction, onNavigate }) {
   const [appointments, setAppointments] = useState([]); const [doctors, setDoctors] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [filter, setFilter] = useState("ALL");
   const load = useCallback(async () => { setLoading(true); setError(""); try { const [a,d] = await Promise.all([api("/appointments/my?page=0&size=100", { token }), api("/doctors", { token })]); setAppointments(pageContent(a)); setDoctors(Array.isArray(d) ? d : []); } catch (e) { setError(e.message); } finally { setLoading(false); } }, [token]);
   useEffect(() => { load(); }, [load]);
-  const doctorName = id => doctors.find(d => d.id === id)?.name ? `Dr. ${doctors.find(d => d.id === id).name}` : shortId(id);
+  const doctorName = id => {
+  const doctor = doctors.find(d => d.id === id);
+  return doctor ? formatDoctorName(doctor.name) : shortId(id);
+};
   const shown = appointments.filter(a => filter === "ALL" || a.status === filter);
   const cancel = async appointment => { if (!window.confirm("Cancel this appointment?")) return; const ok = await onAction(() => api(`/appointments/${appointment.id}/cancel`, { token, method: "PUT" }), "Appointment cancelled."); if (ok) load(); };
   return <div className="content-stack"><PageTitle eyebrow="YOUR CARE" title="Appointments" description="Keep track of upcoming visits and previous appointments." actions={<button className="primary-button" onClick={() => onNavigate("doctors")}>+ Book appointment</button>} /><div className="filter-row"><div className="segmented">{["ALL","SCHEDULED","COMPLETED","CANCELLED"].map(s => <button key={s} className={filter === s ? "selected" : ""} onClick={() => setFilter(s)}>{s === "ALL" ? "All" : titleCase(s)}</button>)}</div><button className="secondary-button" onClick={load}>↻ Refresh</button></div>
@@ -746,7 +753,7 @@ function CreateDoctor({ token, onAction }) {
   const [form, setForm] = useState({ name: "", email: "", password: "", specialization: "", licenseNumber: "" }); const [saving, setSaving] = useState(false);
   const update = (key, value) => setForm(old => ({ ...old, [key]: value }));
   const submit = async e => { e.preventDefault(); setSaving(true); const ok = await onAction(() => api("/admin/doctor", { token, method: "POST", body: { ...form, name: form.name.trim(), email: form.email.trim(), specialization: form.specialization.trim(), licenseNumber: form.licenseNumber.trim() } }), "Doctor account created successfully."); setSaving(false); if (ok) setForm({ name: "", email: "", password: "", specialization: "", licenseNumber: "" }); };
-  return <div className="content-stack"><PageTitle eyebrow="TEAM ADMINISTRATION" title="Add a doctor" description="Create a doctor account and clinical profile. Only administrators can use this action." /><div className="form-layout"><form className="panel form-panel" onSubmit={submit}><div className="form-section-title"><span className="form-step">01</span><div><h3>Account details</h3><p>These details are used to sign in.</p></div></div><label>Doctor's full name<input value={form.name} onChange={e => update("name",e.target.value)} required maxLength={100} placeholder="e.g. Dr. Aditi Sharma" /></label><label>Email address<input type="email" value={form.email} onChange={e => update("email",e.target.value)} required placeholder="doctor@hospital.com" /></label><label>Temporary password<input type="password" minLength={6} value={form.password} onChange={e => update("password",e.target.value)} required placeholder="At least 6 characters" /><span className="field-hint">Share credentials securely with the doctor.</span></label><div className="form-section-title section-gap"><span className="form-step">02</span><div><h3>Clinical profile</h3><p>Enter the doctor's professional details.</p></div></div><label>Specialization<input value={form.specialization} onChange={e => update("specialization",e.target.value)} required placeholder="e.g. Cardiology" /></label><label>License number<input value={form.licenseNumber} onChange={e => update("licenseNumber",e.target.value)} required placeholder="Professional license number" /></label><div className="form-actions"><span className="field-hint">The new account receives the DOCTOR role.</span><button className="primary-button" disabled={saving}>{saving ? "Creating…" : "Create doctor account"} <span>→</span></button></div></form><aside className="side-note"><span className="side-note-icon">✚</span><h3>Doctor access</h3><p>New doctor accounts can sign in, manage their profile, review appointments, view connected patients, and create medical records.</p><div className="side-note-line" /><small>Only an authenticated administrator can create doctor accounts.</small></aside></div></div>;
+  return <div className="content-stack"><PageTitle eyebrow="TEAM ADMINISTRATION" title="Add a doctor" description="Create a doctor account and clinical profile. Only administrators can use this action." /><div className="form-layout"><form className="panel form-panel" onSubmit={submit}><div className="form-section-title"><span className="form-step">01</span><div><h3>Account details</h3><p>These details are used to sign in.</p></div></div><label>Doctor's full name<input value={form.name} onChange={e => update("name",e.target.value)} required maxLength={100} placeholder="e.g. Aditi Sharma" /></label><label>Email address<input type="email" value={form.email} onChange={e => update("email",e.target.value)} required placeholder="doctor@hospital.com" /></label><label>Temporary password<input type="password" minLength={6} value={form.password} onChange={e => update("password",e.target.value)} required placeholder="At least 6 characters" /><span className="field-hint">Share credentials securely with the doctor.</span></label><div className="form-section-title section-gap"><span className="form-step">02</span><div><h3>Clinical profile</h3><p>Enter the doctor's professional details.</p></div></div><label>Specialization<input value={form.specialization} onChange={e => update("specialization",e.target.value)} required placeholder="e.g. Cardiology" /></label><label>License number<input value={form.licenseNumber} onChange={e => update("licenseNumber",e.target.value)} required placeholder="Professional license number" /></label><div className="form-actions"><span className="field-hint">The new account receives the DOCTOR role.</span><button className="primary-button" disabled={saving}>{saving ? "Creating…" : "Create doctor account"} <span>→</span></button></div></form><aside className="side-note"><span className="side-note-icon">✚</span><h3>Doctor access</h3><p>New doctor accounts can sign in, manage their profile, review appointments, view connected patients, and create medical records.</p><div className="side-note-line" /><small>Only an authenticated administrator can create doctor accounts.</small></aside></div></div>;
 }
 
 function PageTitle({ eyebrow, title, description, actions }) { return <div className="page-title-row"><div><span className="eyebrow">{eyebrow}</span><h1>{title}</h1><p>{description}</p></div>{actions && <div className="page-title-actions">{actions}</div>}</div>; }
